@@ -17,11 +17,9 @@ public:
 	ANT_compress() {}
 	virtual ~ANT_compress() {}
 
-	/*
-		destination_length is in bytes.  source_integers is in units of integers, returns the length in bytes
-	*/
-	virtual long long compress(unsigned char *destination, long long destination_length, uint32_t *source, long long source_integers) = 0;
-	virtual void decompress(uint32_t *destination, unsigned char *source, long long destination_integers) = 0;
+	virtual void encodeArray(const uint32_t *in, uint64_t len, uint32_t *out, uint64_t *nvalue) = 0;
+	virtual void decodeArray(const uint32_t *in, uint64_t len, uint32_t *out, uint64_t nvalue) = 0;
+
 } ;
 
 #endif  /* COMPRESS_H_ */

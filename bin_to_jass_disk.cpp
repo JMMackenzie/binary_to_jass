@@ -7,13 +7,14 @@
 #include <cstring>
 #include <numeric>
 #include "compress_qmx.h"
+#include "compress_integer_elias_gamma_simd.h"
 #include <immintrin.h>
 
 
 uint32_t read_u32(FILE* f)
 {
     uint32_t x;
-    int ret = fread(&x, sizeof(uint32_t), 1, f);
+    size_t ret = fread(&x, sizeof(uint32_t), 1, f);
     if (feof(f)) {
         return 0;
     }
@@ -169,7 +170,19 @@ void read_and_write_doclist(std::string docid_file,
 
 void score_index(std::string ds2i_prefix,
                  std::string lex_file,
-                 const double quant_level){
+                 const double quant_level,
+                 char compression){
+
+	 // Tell JASS that we're using QMX-D1: we need to compute our own deltas
+	 ANT_compress *compression_scheme;
+	if (compression == 'q')
+		 compression_scheme = new ANT_compress_qmx();
+	else if (compression == 'G')
+		 compression_scheme = new JASS::compress_integer_elias_gamma_simd();
+	else
+		  compression_scheme = nullptr;
+	ANT_compress &compressor = *compression_scheme;
+
 
     uint32_t sse_alignment = 16;
     std::vector<std::string> m_terms;
@@ -177,10 +190,12 @@ void score_index(std::string ds2i_prefix,
     // 1. Read lexicon file and start building posting metadata
     std::ifstream lex_data(lex_file);
     std::string term;
-    uint32_t term_id;
-    while (lex_data >> term >> term_id) {
-      m_terms.emplace_back(term); 
-    }
+	 uint32_t term_id = 0;
+	 while (lex_data >> term) {
+	     m_terms.emplace_back(term);
+	     ++term_id;
+	 }
+
     std::cerr << "Read " << m_terms.size() << " terms.\n";
 
     std::string docs_file = ds2i_prefix + ".docs";
@@ -263,11 +278,8 @@ void score_index(std::string ds2i_prefix,
     size_t pl_offset = 0;
 
     // Tell JASS that we're using QMX-D1: we need to compute our own deltas
-    uint8_t compression = 'q';
     postings.write((char *)&compression, sizeof(uint8_t));
     pl_offset = postings.tellp();
-
-    ANT_compress_qmx compressor;
 
 
     // Reiterate, quantize, build, and write JASS data
@@ -326,8 +338,8 @@ void score_index(std::string ds2i_prefix,
       
         // Give the buffer double + some incase of overflow
         std::vector<uint32_t> compressed_segment (2 * pl_segments[j].size() + 1024);
-        uint64_t used;
-       
+        uint64_t used = compressed_segment.size() * sizeof(compressed_segment[0]);
+
         // Delta encode the document identifiers
         fastDelta(pl_segments[j].data(), pl_segments[j].size()); 
         compressor.encodeArray(pl_segments[j].data(), pl_segments[j].size(), compressed_segment.data(), &used);
@@ -408,14 +420,15 @@ void score_index(std::string ds2i_prefix,
 }
 
 void usage(std::string program) {
-  std::cerr << program << " <ds2i_prefix> <docid file> <lexicon file>" 
-            << "<max quantized score [256 = 8 bit quant, 512 = 9 bit quant]>\n";
+  std::cerr << program << " <ds2i_prefix> <docid file> <lexicon file>"
+            << "<max quantized score [256 = 8 bit quant, 512 = 9 bit quant]><q|G [QMX, EliasGammaSIMD]>\n";
+  std::cerr << "e.g. " << program << " wsj wsj.documents wsj.terms 256 G\n";
   exit(EXIT_FAILURE);
 }
 
 int main(int argc, char** argv)
 {
-    if(argc != 5)
+    if(argc != 6)
       usage(argv[0]);
 
     // Get input data
@@ -426,7 +439,12 @@ int main(int argc, char** argv)
 
     // Do it
     read_and_write_doclist(docid_file, "CIdoclist.bin");
-    score_index(ds2i_prefix, lexicon_file, quantization);
-    
-}
+    if (*argv[5] == 'q')
+        score_index(ds2i_prefix, lexicon_file, quantization, 'q');
+	 else if (*argv[5] == 'G')
+        score_index(ds2i_prefix, lexicon_file, quantization, 'G');
+    else
+        usage(argv[0]);
 
+return (EXIT_SUCCESS);
+}
