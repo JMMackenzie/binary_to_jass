@@ -7,6 +7,9 @@
 
 #include <stdint.h>
 #define ANT_compressable_integer uint32_t
+#define integer uint32_t
+#define JASS_COMPRESS_INTEGER_BITS_PER_INTEGER 32
+
 /*
 	class ANT_COMPRESS
 	------------------

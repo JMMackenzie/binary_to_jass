@@ -8,6 +8,7 @@
 #include <numeric>
 #include "compress_qmx.h"
 #include "compress_integer_elias_gamma_simd.h"
+#include "compress_integer_elias_gamma_simd_vb.h"
 #include <immintrin.h>
 
 
@@ -174,14 +175,16 @@ void score_index(std::string ds2i_prefix,
                  char compression){
 
 	 // Tell JASS that we're using QMX-D1: we need to compute our own deltas
-	 ANT_compress *compression_scheme;
-	if (compression == 'q')
-		 compression_scheme = new ANT_compress_qmx();
-	else if (compression == 'G')
-		 compression_scheme = new JASS::compress_integer_elias_gamma_simd();
-	else
-		  compression_scheme = nullptr;
-	ANT_compress &compressor = *compression_scheme;
+    ANT_compress *compression_scheme;
+    if (compression == 'q')
+        compression_scheme = new ANT_compress_qmx();
+    else if (compression == 'G')
+        compression_scheme = new JASS::compress_integer_elias_gamma_simd();
+    else if (compression == 'g')
+        compression_scheme = new JASS::compress_integer_elias_gamma_simd_vb();
+    else
+         compression_scheme = nullptr;
+    ANT_compress &compressor = *compression_scheme;
 
 
     uint32_t sse_alignment = 16;
@@ -441,10 +444,13 @@ int main(int argc, char** argv)
     read_and_write_doclist(docid_file, "CIdoclist.bin");
     if (*argv[5] == 'q')
         score_index(ds2i_prefix, lexicon_file, quantization, 'q');
-	 else if (*argv[5] == 'G')
+    else if (*argv[5] == 'G')
         score_index(ds2i_prefix, lexicon_file, quantization, 'G');
+    else if (*argv[5] == 'g')
+        score_index(ds2i_prefix, lexicon_file, quantization, 'g');
     else
         usage(argv[0]);
+
 
 return (EXIT_SUCCESS);
 }
